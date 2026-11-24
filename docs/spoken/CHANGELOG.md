@@ -4,6 +4,8 @@ Spoken Player until 3.0.0, when it became Spoken and took its modules into one d
 
 ## Unreleased
 
+- **Gossip keeps reading when a trainer instruction window replaces the gossip window,** and stops
+  once the interaction windows really close. *([anon1231823](https://github.com/anon1231823))*
 - **Progress text keeps reading as a quest moves to its reward page,** even with Stop When Window
   Closes on. *([anon1231823](https://github.com/anon1231823))*
 - **With Read After Accepting on, a quest reads once you accept or hand it in.** It replaces Read
