@@ -817,6 +817,8 @@ DUI:HandleQuestDetail()
 Expect("back on a voiced quest, it reports again", corner.missing, false)
 world.questID = 102
 world.gossipText = "Strange times, friend."
+-- DialogueUI's gossip shows no Blizzard frame, but the player is still with the NPC.
+world.npcPresent = true
 DUI.handler = "HandleGossip"
 DUI:HandleGossip()
 Expect("gossip no pack voices offers it too", icon:IsShown() and corner.missing, true)

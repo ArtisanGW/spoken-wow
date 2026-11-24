@@ -341,11 +341,21 @@ local function GetVisibleQuestEvent()
     return lastQuestEvent
 end
 
-local function IsQuestWindowVisible()
-    return IsFrameVisible(QuestFrameRewardPanel)
-        or IsFrameVisible(QuestFrameProgressPanel)
-        or IsFrameVisible(QuestFrameDetailPanel)
-        or IsFrameVisible(QuestFrameGreetingPanel)
+--- Whether `questID`'s own dialog is still open in one of the given panels. QUEST_FINISHED also
+--- fires as one panel gives way to the next, so a window that is still up after the grace period
+--- only keeps a line if it shows the same quest; another quest's window means the player left.
+local function IsQuestDialogOpen(questID, ...)
+    local open = false
+    for i = 1, select("#", ...) do
+        if IsFrameVisible(select(i, ...)) then
+            open = true
+            break
+        end
+    end
+    if not open then return false end
+    local shownID, ownID = tonumber(NotSecret(GetQuestID())), tonumber(questID)
+    -- Classic can report 0 for a moment while the panel is already filled in.
+    return not shownID or shownID == 0 or not ownID or ownID == 0 or shownID == ownID
 end
 
 -- The Forever client's gamepad UI takes over every popup as it opens, inside the code that
@@ -2000,7 +2010,7 @@ function Addon:QUEST_FINISHED()
         offer.stopOnClose = waitForAccept
         offer.closeTimer = self:ScheduleTimer(function()
             offer.closeTimer = nil
-            if IsQuestWindowVisible() then
+            if IsQuestDialogOpen(offer.questID, QuestFrameDetailPanel) then
                 return
             end
             if not offer.accepted and offer.stopOnClose and offer.soundData then
@@ -2036,7 +2046,7 @@ function Addon:QUEST_FINISHED()
             retainedTurnIn.stopOnClose = audio.StopAudioOnDisengage
             retainedTurnIn.closeTimer = self:ScheduleTimer(function()
                 retainedTurnIn.closeTimer = nil
-                if IsQuestWindowVisible() then
+                if IsQuestDialogOpen(retainedTurnIn.questID, QuestFrameProgressPanel, QuestFrameRewardPanel) then
                     return
                 end
                 if not retainedTurnIn.turnedIn and retainedTurnIn.stopOnClose then
@@ -2065,8 +2075,7 @@ function Addon:QUEST_FINISHED()
             Player:Remove(currentQuestSoundData)
         end
         if not waitForAccept then
-            -- An addon that moves straight from one quest's dialog to the next leaves the earlier
-            -- quest's line queued under its own record, not as the current line.
+            -- Accepting stops an offer as surely as closing does, so it need not wait to learn which.
             if offer and offer.soundData then
                 Player:Remove(offer.soundData)
             end
@@ -2082,8 +2091,16 @@ function Addon:QUEST_FINISHED()
 end
 
 function Addon:GOSSIP_CLOSED()
-    -- Stop When Window Closes is intentionally quest-only; gossip lines are not tied to the
-    -- gossip frame's close event because selecting an option can replace it with another NPC UI.
+    local soundData = currentGossipSoundData
+    if Addon.db.profile.Audio.StopAudioOnDisengage and soundData then
+        -- An option that opens the NPC's trainer, vendor or quest closes the gossip window too.
+        -- The "npc" unit lasts while any of that NPC's windows is open, so it tells the two apart.
+        self:ScheduleTimer(function()
+            if not soundData.unitGUID or Utils:GetNPCGUID() ~= soundData.unitGUID then
+                Player:Remove(soundData)
+            end
+        end, QUEST_ACCEPT_GRACE)
+    end
     currentGossipSoundData = nil
     EndGreetingTextWait()
 
